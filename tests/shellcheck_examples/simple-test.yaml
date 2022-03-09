@@ -1,0 +1,2 @@
+my_job:
+  script: echo $1

@@ -1,0 +1,5 @@
+{
+  "returncode": 1,
+  "stderr": "",
+  "stdout_json": [{"file":"-","line":1,"endLine":1,"column":6,"endColumn":8,"level":"info","code":2086,"message":"Double quote to prevent globbing and word splitting.","fix":{"replacements":[{"line":1,"endLine":1,"precedence":7,"insertionPoint":"afterEnd","column":6,"replacement":"\"","endColumn":6},{"line":1,"endLine":1,"precedence":7,"insertionPoint":"beforeStart","column":8,"replacement":"\"","endColumn":8}]}}]
+}
