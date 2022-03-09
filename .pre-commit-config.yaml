@@ -22,4 +22,4 @@ repos:
             - "--strict"
         exclude: "tests/*"
         additional_dependencies:
-            - "black"
+            - "types-PyYAML"
