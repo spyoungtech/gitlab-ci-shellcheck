@@ -1,10 +1,12 @@
 import json
 import os
 import pathlib
+import subprocess
 import sys
 from typing import Any
 from typing import TypedDict
 from typing import Union
+from unittest import mock
 
 import pytest
 
@@ -14,7 +16,7 @@ ROOT = TESTS_DIR.parent
 EXAMPLES_DIR = pathlib.Path(__file__).parent / 'shellcheck_examples'
 sys.path.insert(0, str(ROOT))
 
-from gitlab_ci_shellcheck import shellcheck_string, job_config_to_shell, load_yaml, yaml_to_jobs
+from gitlab_ci_shellcheck import shellcheck_string, job_config_to_shell, load_yaml, yaml_to_jobs, _cli
 
 
 class ExpectedShellcheckResult(TypedDict):
@@ -63,3 +65,17 @@ def test_yaml_to_script(test_file: str):
         with open(expected_after_file) as after_f:
             expected_after = after_f.read()
         assert after_script == expected_after
+
+
+def test_cli_fail():
+    testargs = ['gitlab-ci-shellcheck', 'tests/shellcheck_examples/simple-test.yaml']
+    with mock.patch.object(sys, 'argv', testargs):
+        with pytest.raises(SystemExit, match='1'):
+            _cli()
+
+
+def test_cli_pass():
+    testargs = ['gitlab-ci-shellcheck', 'tests/shellcheck_examples/before-script.yaml']
+    with mock.patch.object(sys, 'argv', testargs):
+        with pytest.raises(SystemExit, match='0'):
+            _cli()

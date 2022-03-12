@@ -10,6 +10,7 @@ from typing import Dict
 from typing import Generic
 from typing import List
 from typing import Literal
+from typing import NoReturn
 from typing import Optional
 from typing import Sequence
 from typing import Tuple
@@ -296,5 +297,9 @@ def main() -> int:
     return res
 
 
-if __name__ == '__main__':
+def _cli() -> NoReturn:
     raise SystemExit(main())
+
+
+if __name__ == '__main__':
+    _cli()
