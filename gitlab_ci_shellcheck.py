@@ -1,4 +1,6 @@
 import argparse
+import json
+import os
 import pathlib
 import shutil
 import subprocess
@@ -7,6 +9,7 @@ from typing import Any
 from typing import Dict
 from typing import Generic
 from typing import List
+from typing import Literal
 from typing import Optional
 from typing import Sequence
 from typing import Tuple
@@ -91,6 +94,12 @@ class CiConfig(TypedDict, total=False):
     cache: Any
 
 
+class JobResult(TypedDict):
+    script_result: subprocess.CompletedProcess[str]
+    after_script_result: Optional[subprocess.CompletedProcess[str]]
+    result: Literal['pass', 'fail']
+
+
 class ShellcheckNotFound(EnvironmentError):
     ...
 
@@ -162,7 +171,7 @@ def script_block_to_str(obj: Union[str, ReferenceTag, List[Union[str, ReferenceT
         raise ValueError(f'unexpected script value {obj!r}')
 
 
-def ci_yaml_to_shell(job_config: JobConfig, shell: str = 'bash') -> Tuple[str, str]:
+def job_config_to_shell(job_config: Union[JobConfig, Dict[Any, Any]], shell: str = 'bash') -> Tuple[str, str]:
     """
     Returns two-item tuple of the 'script' and 'after_script' portion of a job. Includes the before_script as part of script.
 
@@ -204,14 +213,75 @@ def _verify_git_available() -> Optional[str]:
     return shutil.which('git')
 
 
-def _main(filepath: str) -> None:
+def _print_job_error(job_result: JobResult) -> None:
+
+    if job_result['script_result'].returncode != 0:
+        info = json.loads(job_result['script_result'].stdout)
+        print('Script validation error:\n', '\n'.join(r.get('message') for r in info))
+
+    if job_result['after_script_result'] and job_result['after_script_result'].returncode != 0:
+        info = json.loads(job_result['after_script_result'].stdout)
+        print('after_script: validation error:\n', '\n'.join(r.get('message') for r in info))
+
     return None
 
 
-def main() -> None:
+def _main(filepath: str, no_fix: bool = False) -> int:
+    config = load_yaml(filepath)
+    jobs = yaml_to_jobs(ci_configuration=config)
+    job_results = []
+    overall_status: Literal[0, 1]
+    overall_status = 0
+    num_jobs = len(jobs)
+    if num_jobs < 1:
+        print('No jobs to check')
+        return 1
+    print(f'Collected {len(jobs)} jobs to check...')
+    for job in jobs:
+        script, after_script = job_config_to_shell(job_config=job)
+        # TODO: allow users to provide args
+        script_result = shellcheck_string(script_text=script, shellcheck_args=['-f', 'json', '-s', 'bash'])
+        if after_script.strip():
+            after_script_result = shellcheck_string(
+                script_text=after_script, shellcheck_args=['-f', 'json', '-s', 'bash']
+            )
+        else:
+            after_script_result = None
+
+        overall_result: Literal['pass', 'fail']
+        overall_result = 'pass'
+        if script_result.returncode != 0:
+            overall_result = 'fail'
+        if after_script_result and after_script_result.returncode != 0:
+            overall_result = 'fail'
+
+        job_result: JobResult
+        job_result = {
+            'script_result': script_result,
+            'after_script_result': after_script_result,
+            'result': overall_result,
+        }
+        if job_result['result'] == 'pass':
+            print('.', end='')
+        else:
+            print('F', end='')
+        job_results.append(job_result)
+    print()
+    for res in job_results:
+        if res['result'] != 'pass':
+            overall_status = 1
+            _print_job_error(res)
+    return overall_status
+
+
+def main() -> int:
     parser = argparse.ArgumentParser('gitlab-ci-shellcheck')
-    parser.add_argument('gitlab-ci-yaml', default=None)
-    parser.add_argument('--no-fix', action='store_true', dest='no_fix')
+    parser.add_argument(
+        'gitlab_ci_yaml', default='.gitlab-ci.yml', nargs='?', help='filepath of the gitlab CI YAML configuration'
+    )
+    parser.add_argument(
+        '--no-fix', action='store_true', dest='no_fix', help='Reserved for future use. Has no effect currently'
+    )
     args = parser.parse_args()
     if not _verify_shellcheck_available():
         raise ShellcheckNotFound('Could not find shellcheck. Shellcheck must be installed and on PATH')
@@ -219,4 +289,12 @@ def main() -> None:
         raise GitNotFound(
             'Could not find git. Git is required for autofixing issues. Install git or pass --no-fix argument'
         )
-    return None
+    if not os.path.exists(args.gitlab_ci_yaml):
+        print(f'file path {args.gitlab_ci_yaml!r} does not exist.')
+        return 1
+    res = _main(filepath=args.gitlab_ci_yaml, no_fix=args.no_fix)
+    return res
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

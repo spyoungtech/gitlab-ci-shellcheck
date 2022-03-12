@@ -14,7 +14,7 @@ ROOT = TESTS_DIR.parent
 EXAMPLES_DIR = pathlib.Path(__file__).parent / 'shellcheck_examples'
 sys.path.insert(0, str(ROOT))
 
-from gitlab_ci_shellcheck import shellcheck_string, ci_yaml_to_shell, load_yaml, yaml_to_jobs
+from gitlab_ci_shellcheck import shellcheck_string, job_config_to_shell, load_yaml, yaml_to_jobs
 
 
 class ExpectedShellcheckResult(TypedDict):
@@ -51,7 +51,7 @@ def test_yaml_to_script(test_file: str):
     expected_file = test_file.parent / str(test_file).replace('.yaml', '.sh')
     config = load_yaml(test_file)
     (job,) = yaml_to_jobs(config)
-    script, after_script = ci_yaml_to_shell(job)
+    script, after_script = job_config_to_shell(job)
     with open(expected_file) as f:
         expected = f.read().strip()
     assert script == expected
