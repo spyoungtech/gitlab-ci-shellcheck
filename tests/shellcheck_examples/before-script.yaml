@@ -1,0 +1,5 @@
+myjob:
+  before_script:
+    - echo "first line"
+  script:
+    - echo "second line"
